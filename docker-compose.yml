@@ -1,0 +1,58 @@
+x-service-common:
+  &service-common
+  build:
+    context: .
+    dockerfile: ./Dockerfile
+  image: automated_compliance_check_app_img
+  container_name: automated_compliance_check_app_con
+  restart: unless-stopped
+  command: streamlit run ui/streamlit_app.py --server.port 8501
+  volumes:
+    - "./data:/app/data:rw"
+    - "./.env:/.env:ro"
+
+  networks:
+    - reverse_proxy
+  environment:
+      SELENIUM_REMOTE_URL: "http://stat-hh-smiworker:4441"
+
+services:
+  automated_compliance_check_app_dev:
+    <<: *service-common
+    profiles: [dev]
+
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.automated_compliance_check_app.entrypoints=websecure"
+      - "traefik.http.routers.automated_compliance_check_app.tls=true"
+      - "traefik.http.services.automated_compliance_check_app.loadbalancer.server.port=8501"
+      - "traefik.http.routers.automated_compliance_check_app.rule=Host(`stat-hh-worker-dev.corp.statista.com`) && PathPrefix(`/automated-compliance-check`) && PathRegexp(`^/automated-compliance-check($|/.*)`)"
+
+  automated_compliance_check_app_prod:
+    <<: *service-common
+    profiles: [prod]
+
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.automated_compliance_check_app.entrypoints=websecure"
+      - "traefik.http.routers.automated_compliance_check_app.tls=true"
+      - "traefik.http.services.automated_compliance_check_app.loadbalancer.server.port=8501"
+      - "traefik.http.routers.automated_compliance_check_app.rule=Host(`stat-hh-worker-prod.corp.statista.com`) && PathPrefix(`/automated-compliance-check`) && PathRegexp(`^/automated-compliance-check($|/.*)`)"
+
+networks:
+  reverse_proxy:
+    external: true
